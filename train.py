@@ -122,19 +122,20 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.gpu is not None:
         print("Use GPU: {} for training".format(args.gpu))
+        torch.cuda.set_device(args.gpu)
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
 
+    # Initialize distributed training if needed
     if args.distributed:
         if args.dist_url == "env://" and args.rank == -1:
             args.rank = int(os.environ["RANK"])
         if args.multiprocessing_distributed:
-            # For multiprocessing distributed training, rank needs to be the
-            # global rank among all the processes
             args.rank = args.rank * ngpus_per_node + gpu
-        print('rank', args.rank)
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
+        dist.init_process_group(backend='nccl', init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
 
-    # create model
+    # Create model
     face_encoder = IR_SE_50([112,112])
     face_encoder.load_state_dict(torch.load('saved_models/face_res_50.pth'))
     netG = CFRNet()
@@ -147,7 +148,6 @@ def main_worker(gpu, ngpus_per_node, args):
     criterion_cos = torch.nn.CosineSimilarity()
 
     if args.gpu is not None:
-        torch.cuda.set_device(args.gpu)
         netG.cuda(args.gpu)
         netD.cuda(args.gpu)
         criterion_per.cuda(args.gpu)

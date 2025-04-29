@@ -18,17 +18,27 @@ class PerceptualLoss(nn.Module):
             raise ValueError('Model type should be one of resnet or vgg')
     
     def forward(self, y_hat, y):
+        if not y_hat.is_cuda:
+            y_hat = y_hat.cuda()
+        if not y.is_cuda:
+            y = y.cuda()
         return self.criterion(y_hat, y)
 
 
 class VGGLoss(nn.Module):
     def __init__(self):
         super(VGGLoss, self).__init__()
-        self.vgg = VGG19().cuda()
+        self.vgg = VGG19()
+        if torch.cuda.is_available():
+            self.vgg = self.vgg.cuda()
         self.criterion = nn.MSELoss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
     def forward(self, x, y):
+        if not x.is_cuda:
+            x = x.cuda()
+        if not y.is_cuda:
+            y = y.cuda()
         x_vgg, y_vgg = self.vgg(x), self.vgg(y)
         loss = 0
         for i in range(len(x_vgg)):
@@ -40,6 +50,8 @@ class ResLoss(nn.Module):
         super(ResLoss, self).__init__()
         self.criterion = nn.L1Loss()
         resnet = resnet50(pretrained=True)
+        if torch.cuda.is_available():
+            resnet = resnet.cuda()
 
         self.B1 = nn.Sequential(
             resnet.conv1,
@@ -48,10 +60,14 @@ class ResLoss(nn.Module):
             resnet.maxpool,
             resnet.layer1,
         )
-        self.B2 = resnet.layer2
-        self.B3 = resnet.layer3
+        if torch.cuda.is_available():
+            self.B1 = self.B1.cuda()
 
     def forward(self, _data, _target):
+        if not _data.is_cuda:
+            _data = _data.cuda()
+        if not _target.is_cuda:
+            _target = _target.cuda()
         data, target = self.B1(_data), self.B1(_target)
         B1_loss = torch.mean(torch.square(data - target), dim=[1,2,3])
 

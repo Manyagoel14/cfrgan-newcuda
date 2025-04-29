@@ -225,17 +225,24 @@ class SCDiffer(nn.Module):
     """
     def __init__(self, filter_size=5, size_average = True):
         super(SCDiffer, self).__init__()
-        self.filter_size = filter_size
         self.size_average = size_average
-        self.channel = 3
-        self.medianblur = MedianPool2d(kernel_size=5, padding=2)
-        self.window = create_window(filter_size, self.channel).cuda()
-    
+        self.filter_size = filter_size
+        self.window = None
+
     def forward(self, img1, img2, alpha=0.33):
-        # self.window = window.cuda(img1.get_device()).type_as(img1)
+        if not img1.is_cuda:
+            img1 = img1.cuda()
+        if not img2.is_cuda:
+            img2 = img2.cuda()
+            
+        if self.window is None:
+            self.window = create_window(self.filter_size, img1.size(1))
+            if torch.cuda.is_available():
+                self.window = self.window.cuda(img1.get_device())
+        
         self.window = self.window.type_as(img1)
 
-        con_str = _ssim(img1, img2, self.window, self.filter_size, self.channel)
+        con_str = _ssim(img1, img2, self.window, self.filter_size, img1.size(1))
         con_str = torch.mean(1.-con_str, dim=1, keepdim=True)
 
         img1_labs = blur(rgb_to_lab(img1), filter_size=3)
@@ -251,7 +258,5 @@ class SCDiffer(nn.Module):
         occ_map = lab_diff*con_str + lab_diff + con_str*alpha
         occ_map = (occ_map - torch.mean(occ_map, dim=[1,2,3], keepdim=True)) / torch.std(occ_map, dim=[1,2,3], keepdim=True)
         occ_map = torch.clamp(occ_map, 0.0, 1.0)
-        occ_map = self.medianblur(occ_map)
-        # occ_map = erosion(occ_map, filter_size=2)
         
         return occ_map

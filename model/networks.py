@@ -24,9 +24,9 @@ class VGG19(torch.nn.Module):
             self.slice4.add_module(str(x), vgg_pretrained_features[x])
         for x in range(21, 30):
             self.slice5.add_module(str(x), vgg_pretrained_features[x])
-        # if not requires_grad:
-        #     for param in self.parameters():
-        #         param.requires_grad = False
+        if not requires_grad:
+            for param in self.parameters():
+                param.requires_grad = False
 
     def forward(self, X):
         h_relu1 = self.slice1(X)
@@ -112,6 +112,16 @@ class CFRNet(nn.Module):
         self.init_weight()
     
     def forward(self, rotated, guidance, wo_mask=False):
+        # Ensure inputs are on the correct device
+        if not rotated.is_cuda:
+            rotated = rotated.cuda()
+        if not guidance.is_cuda:
+            guidance = guidance.cuda()
+            
+        # Normalize inputs
+        rotated = (rotated - 0.5) * 2
+        guidance = (guidance - 0.5) * 2
+        
         # Normalize
         rotated = self.conv_r(rotated)
         guidance = self.conv_g(guidance)
